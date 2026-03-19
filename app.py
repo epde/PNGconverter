@@ -333,14 +333,36 @@ if mode == "Upload web":
         st.subheader("Report conversione")
         st.dataframe(report_rows, use_container_width=True, hide_index=True)
 
+        st.markdown("### Download rapido file singoli")
+        st.caption("Spunta i file a sinistra per includerli nelle operazioni di download selettivo.")
+
+        selected_items = []
         for idx, item in enumerate(st.session_state.upload_results):
-            st.download_button(
-                label=f"Scarica {item['png_name']}",
-                data=item["png_data"],
-                file_name=item["png_name"],
-                mime="image/png",
-                key=f"dl_upload_{idx}_{item['png_name']}",
-            )
+            row = st.columns([0.12, 0.58, 0.30])
+
+            with row[0]:
+                is_selected = st.checkbox(
+                    "Seleziona file",
+                    value=True,
+                    key=f"sel_upload_{idx}_{item['png_name']}",
+                    label_visibility="collapsed",
+                )
+
+            with row[1]:
+                st.write(f"{item['png_name']} ({format_kb(item['png_size'])})")
+
+            with row[2]:
+                st.download_button(
+                    label="⬇ Download",
+                    data=item["png_data"],
+                    file_name=item["png_name"],
+                    mime="image/png",
+                    key=f"dl_upload_{idx}_{item['png_name']}",
+                    use_container_width=True,
+                )
+
+            if is_selected:
+                selected_items.append(item)
 
         show_zip_download = st.checkbox(
             "Mostra anche download ZIP",
@@ -351,17 +373,20 @@ if mode == "Upload web":
         if show_zip_download:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-                for item in st.session_state.upload_results:
+                for item in selected_items:
                     zf.writestr(item["png_name"], item["png_data"])
             zip_buffer.seek(0)
 
-            st.download_button(
-                label="Scarica tutto in ZIP",
-                data=zip_buffer.getvalue(),
-                file_name="converted_png.zip",
-                mime="application/zip",
-                key="dl_zip",
-            )
+            if selected_items:
+                st.download_button(
+                    label="Scarica selezionati in ZIP",
+                    data=zip_buffer.getvalue(),
+                    file_name="converted_png_selected.zip",
+                    mime="application/zip",
+                    key="dl_zip",
+                )
+            else:
+                st.warning("Seleziona almeno un file per creare lo ZIP.")
 
 else:
     st.warning(
