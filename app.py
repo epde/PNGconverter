@@ -1,9 +1,11 @@
 import io
+import urllib.parse
 import zipfile
 from pathlib import Path
 
 import rawpy
 import streamlit as st
+import streamlit.components.v1 as components
 from PIL import Image
 
 
@@ -159,7 +161,44 @@ def format_kb(size_bytes: int) -> str:
     return f"{size_bytes / 1024:.0f} KB"
 
 
+def set_svg_favicon() -> None:
+        svg_icon = """
+        <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>
+            <defs>
+                <linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
+                    <stop offset='0%' stop-color='#0ea5e9'/>
+                    <stop offset='100%' stop-color='#22c55e'/>
+                </linearGradient>
+            </defs>
+            <rect x='4' y='4' width='56' height='56' rx='12' fill='url(#g)'/>
+            <circle cx='23' cy='26' r='7' fill='#ffffff' opacity='0.95'/>
+            <path d='M12 46l12-13 10 10 7-8 11 11H12z' fill='#ffffff' opacity='0.95'/>
+        </svg>
+        """.strip()
+        encoded = urllib.parse.quote(svg_icon)
+        href = f"data:image/svg+xml,{encoded}"
+
+        components.html(
+                f"""
+                <script>
+                    const doc = window.parent.document;
+                    let link = doc.querySelector("link[rel='icon']");
+                    if (!link) {{
+                        link = doc.createElement('link');
+                        link.rel = 'icon';
+                        doc.head.appendChild(link);
+                    }}
+                    link.type = 'image/svg+xml';
+                    link.href = "{href}";
+                </script>
+                """,
+                height=0,
+                width=0,
+        )
+
+
 st.set_page_config(page_title="CR2 to PNG Converter", page_icon="🖼️", layout="centered")
+set_svg_favicon()
 
 if "upload_results" not in st.session_state:
     st.session_state.upload_results = []
@@ -222,8 +261,16 @@ if mode == "Upload web":
             st.session_state.upload_results = []
             st.session_state.upload_errors = []
 
-            for uploaded in uploaded_files:
+            total_files = len(uploaded_files)
+            progress = st.progress(0, text="Preparazione conversione...")
+            status = st.empty()
+
+            for index, uploaded in enumerate(uploaded_files, start=1):
                 try:
+                    progress.progress(
+                        int(((index - 1) / total_files) * 100),
+                        text=f"Elaborazione {index}/{total_files}: {uploaded.name}",
+                    )
                     raw_data = uploaded.read()
                     png_data, dpi = raw_bytes_to_png(
                         raw_data,
@@ -245,8 +292,12 @@ if mode == "Upload web":
                             "png_data": png_data,
                         }
                     )
+                    status.info(f"Completato {index}/{total_files}: {uploaded.name}")
                 except Exception as exc:
                     st.session_state.upload_errors.append(f"Errore su {uploaded.name}: {exc}")
+
+            progress.progress(100, text="Conversione completata")
+            status.success("Conversione terminata. Ora puoi scaricare i file convertiti.")
 
     else:
         st.info("Carica almeno un file CR2 per iniziare.")
