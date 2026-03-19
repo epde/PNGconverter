@@ -1,5 +1,4 @@
 import io
-import base64
 import urllib.parse
 import zipfile
 from pathlib import Path
@@ -160,27 +159,6 @@ def raw_bytes_to_png(
 
 def format_kb(size_bytes: int) -> str:
     return f"{size_bytes / 1024:.0f} KB"
-
-
-def build_download_icon_link(data: bytes, file_name: str) -> str:
-    payload = base64.b64encode(data).decode("ascii")
-    safe_name = urllib.parse.quote(file_name)
-    svg = """
-    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='18' height='18' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
-      <path d='M12 3v10'/>
-      <path d='m7 11 5 5 5-5'/>
-      <path d='M4 20h16'/>
-    </svg>
-    """.strip()
-    icon = urllib.parse.quote(svg)
-    return (
-        f"<a href='data:image/png;base64,{payload}' download='{safe_name}' "
-        "style='display:inline-flex;align-items:center;justify-content:center;" 
-        "width:28px;height:28px;border:1px solid #d0d7de;border-radius:8px;" 
-        "text-decoration:none;color:#0f172a;background:#ffffff;' "
-        f"title='Scarica {file_name}'>"
-        f"<img src='data:image/svg+xml,{icon}' alt='Download' width='16' height='16'/></a>"
-    )
 
 
 def set_svg_favicon() -> None:
@@ -390,7 +368,15 @@ if mode == "Upload web":
                 st.write(f"{item['dpi'][0]}x{item['dpi'][1]}")
 
             with row[5]:
-                st.markdown(build_download_icon_link(item["png_data"], item["png_name"]), unsafe_allow_html=True)
+                st.download_button(
+                    label="⬇",
+                    data=item["png_data"],
+                    file_name=item["png_name"],
+                    mime="image/png",
+                    key=f"dl_icon_{idx}_{item['png_name']}",
+                    help=f"Scarica {item['png_name']}",
+                    width="content",
+                )
 
             if is_selected:
                 selected_items.append(item)
