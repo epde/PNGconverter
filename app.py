@@ -161,6 +161,12 @@ def format_kb(size_bytes: int) -> str:
 
 st.set_page_config(page_title="CR2 to PNG Converter", page_icon="🖼️", layout="centered")
 
+if "upload_results" not in st.session_state:
+    st.session_state.upload_results = []
+
+if "upload_errors" not in st.session_state:
+    st.session_state.upload_errors = []
+
 st.title("CR2 to PNG Converter")
 st.write("Conversione CR2 -> PNG con modalita web o cartella locale.")
 
@@ -177,23 +183,24 @@ keep_source_ppi = st.checkbox(
     help="Se disponibile nei metadati del RAW, il valore PPI viene mantenuto nel PNG.",
 )
 
-fallback_ppi = st.number_input(
-    "PPI di fallback",
-    min_value=72,
-    max_value=1200,
-    value=300,
-    step=1,
-    help="Usato quando il CR2 non contiene il PPI o se disattivi il mantenimento originale.",
-)
+with st.expander("Impostazioni avanzate output", expanded=False):
+    fallback_ppi = st.number_input(
+        "PPI di fallback",
+        min_value=72,
+        max_value=1200,
+        value=300,
+        step=1,
+        help="Usato quando il CR2 non contiene il PPI o se disattivi il mantenimento originale.",
+    )
 
-max_size_mb = st.number_input(
-    "Peso massimo per PNG (MB, opzionale)",
-    min_value=0.0,
-    max_value=500.0,
-    value=0.0,
-    step=1.0,
-    help="0 = nessun limite. Se impostato, la conversione prova a stare sotto il valore.",
-)
+    max_size_mb = st.number_input(
+        "Peso massimo per PNG (MB, opzionale)",
+        min_value=0.0,
+        max_value=500.0,
+        value=0.0,
+        step=1.0,
+        help="0 = nessun limite. Se impostato, la conversione prova a stare sotto il valore.",
+    )
 
 mode = st.radio(
     "Modalita",
@@ -209,52 +216,79 @@ if mode == "Upload web":
     )
 
     if uploaded_files:
-        converted = []
-        report_rows = []
+        st.info("Dopo aver selezionato i file, premi Converti file caricati.")
 
-        for uploaded in uploaded_files:
-            try:
-                raw_data = uploaded.read()
-                png_data, dpi = raw_bytes_to_png(
-                    raw_data,
-                    quality,
-                    max_size_mb,
-                    keep_source_ppi,
-                    int(fallback_ppi),
-                )
+        if st.button("Converti file caricati", type="primary"):
+            st.session_state.upload_results = []
+            st.session_state.upload_errors = []
 
-                base_name = Path(uploaded.name).stem
-                png_name = f"{base_name}.png"
-                converted.append((png_name, png_data))
+            for uploaded in uploaded_files:
+                try:
+                    raw_data = uploaded.read()
+                    png_data, dpi = raw_bytes_to_png(
+                        raw_data,
+                        quality,
+                        max_size_mb,
+                        keep_source_ppi,
+                        int(fallback_ppi),
+                    )
 
-                report_rows.append(
-                    {
-                        "File": uploaded.name,
-                        "Input": format_kb(len(raw_data)),
-                        "Output": format_kb(len(png_data)),
-                        "PPI": f"{dpi[0]}x{dpi[1]}",
-                    }
-                )
+                    base_name = Path(uploaded.name).stem
+                    png_name = f"{base_name}.png"
+                    st.session_state.upload_results.append(
+                        {
+                            "source_name": uploaded.name,
+                            "png_name": png_name,
+                            "raw_size": len(raw_data),
+                            "png_size": len(png_data),
+                            "dpi": dpi,
+                            "png_data": png_data,
+                        }
+                    )
+                except Exception as exc:
+                    st.session_state.upload_errors.append(f"Errore su {uploaded.name}: {exc}")
 
-                st.download_button(
-                    label=f"Scarica {png_name}",
-                    data=png_data,
-                    file_name=png_name,
-                    mime="image/png",
-                    key=f"dl_{uploaded.name}",
-                )
-            except Exception as exc:
-                st.error(f"Errore su {uploaded.name}: {exc}")
+    else:
+        st.info("Carica almeno un file CR2 per iniziare.")
 
-        if report_rows:
-            st.subheader("Report conversione")
-            st.dataframe(report_rows, use_container_width=True, hide_index=True)
+    if st.session_state.upload_errors:
+        for err in st.session_state.upload_errors:
+            st.error(err)
 
-        if converted:
+    if st.session_state.upload_results:
+        report_rows = [
+            {
+                "File": item["source_name"],
+                "Input": format_kb(item["raw_size"]),
+                "Output": format_kb(item["png_size"]),
+                "PPI": f"{item['dpi'][0]}x{item['dpi'][1]}",
+            }
+            for item in st.session_state.upload_results
+        ]
+
+        st.subheader("Report conversione")
+        st.dataframe(report_rows, use_container_width=True, hide_index=True)
+
+        for idx, item in enumerate(st.session_state.upload_results):
+            st.download_button(
+                label=f"Scarica {item['png_name']}",
+                data=item["png_data"],
+                file_name=item["png_name"],
+                mime="image/png",
+                key=f"dl_upload_{idx}_{item['png_name']}",
+            )
+
+        show_zip_download = st.checkbox(
+            "Mostra anche download ZIP",
+            value=False,
+            help="Lascia disattivato se vuoi scaricare solo file singoli.",
+        )
+
+        if show_zip_download:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
-                for name, data in converted:
-                    zf.writestr(name, data)
+                for item in st.session_state.upload_results:
+                    zf.writestr(item["png_name"], item["png_data"])
             zip_buffer.seek(0)
 
             st.download_button(
@@ -264,8 +298,6 @@ if mode == "Upload web":
                 mime="application/zip",
                 key="dl_zip",
             )
-    else:
-        st.info("Carica almeno un file CR2 per iniziare.")
 
 else:
     st.warning(
