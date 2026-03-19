@@ -1,4 +1,5 @@
 import io
+import base64
 import urllib.parse
 import zipfile
 from pathlib import Path
@@ -161,6 +162,27 @@ def format_kb(size_bytes: int) -> str:
     return f"{size_bytes / 1024:.0f} KB"
 
 
+def build_download_icon_link(data: bytes, file_name: str) -> str:
+    payload = base64.b64encode(data).decode("ascii")
+    safe_name = urllib.parse.quote(file_name)
+    svg = """
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='18' height='18' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>
+      <path d='M12 3v10'/>
+      <path d='m7 11 5 5 5-5'/>
+      <path d='M4 20h16'/>
+    </svg>
+    """.strip()
+    icon = urllib.parse.quote(svg)
+    return (
+        f"<a href='data:image/png;base64,{payload}' download='{safe_name}' "
+        "style='display:inline-flex;align-items:center;justify-content:center;" 
+        "width:28px;height:28px;border:1px solid #d0d7de;border-radius:8px;" 
+        "text-decoration:none;color:#0f172a;background:#ffffff;' "
+        f"title='Scarica {file_name}'>"
+        f"<img src='data:image/svg+xml,{icon}' alt='Download' width='16' height='16'/></a>"
+    )
+
+
 def set_svg_favicon() -> None:
         svg_icon = """
         <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>
@@ -321,26 +343,37 @@ if mode == "Upload web":
 
     if st.session_state.upload_results:
         st.subheader("Report conversione")
-        st.caption("Usa la colonna di selezione a sinistra e scarica i singoli file dalla stessa lista.")
+        st.caption("Vista tabellare + controlli rapidi di selezione e download per file.")
 
-        header = st.columns([0.08, 0.30, 0.16, 0.16, 0.12, 0.18])
+        report_rows = [
+            {
+                "File": item["source_name"],
+                "Input": format_kb(item["raw_size"]),
+                "Output": format_kb(item["png_size"]),
+                "PPI": f"{item['dpi'][0]}x{item['dpi'][1]}",
+            }
+            for item in st.session_state.upload_results
+        ]
+        st.dataframe(report_rows, use_container_width=True, hide_index=True)
+
+        st.markdown("#### Selezione e download")
+        header = st.columns([0.08, 0.36, 0.16, 0.16, 0.12, 0.12])
         header[0].markdown("**Sel**")
-        header[1].markdown("**File**")
+        header[1].markdown("**File PNG**")
         header[2].markdown("**Input**")
         header[3].markdown("**Output**")
         header[4].markdown("**PPI**")
-        header[5].markdown("**Download**")
+        header[5].markdown("**DL**")
 
         selected_items = []
         for idx, item in enumerate(st.session_state.upload_results):
-            row = st.columns([0.08, 0.30, 0.16, 0.16, 0.12, 0.18])
+            row = st.columns([0.08, 0.36, 0.16, 0.16, 0.12, 0.12])
 
             with row[0]:
                 is_selected = st.checkbox(
-                    "Seleziona file",
+                    "",
                     value=True,
                     key=f"sel_upload_{idx}_{item['png_name']}",
-                    label_visibility="collapsed",
                 )
 
             with row[1]:
@@ -356,14 +389,7 @@ if mode == "Upload web":
                 st.write(f"{item['dpi'][0]}x{item['dpi'][1]}")
 
             with row[5]:
-                st.download_button(
-                    label="⬇ Download",
-                    data=item["png_data"],
-                    file_name=item["png_name"],
-                    mime="image/png",
-                    key=f"dl_upload_{idx}_{item['png_name']}",
-                    use_container_width=True,
-                )
+                st.markdown(build_download_icon_link(item["png_data"], item["png_name"]), unsafe_allow_html=True)
 
             if is_selected:
                 selected_items.append(item)
