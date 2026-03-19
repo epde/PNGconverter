@@ -1,6 +1,15 @@
 # CR2 to PNG WebApp
 
-Webapp semplice per caricare foto `CR2` da locale e convertirle in `PNG` automaticamente.
+Webapp per convertire foto `CR2` in `PNG` con controllo su qualita e peso finale.
+
+## Funzionalita
+
+- Selezione multipla file CR2 tramite upload web.
+- Modalita locale con percorso sorgente e percorso destinazione su disco.
+- Preset qualita output: `Low`, `Medium`, `High`, `Maximum`.
+- Preservazione PPI originale del CR2 (con fallback configurabile).
+- Limite opzionale sul peso massimo per PNG (in MB).
+- Report finale con confronto peso input/output.
 
 ## Requisiti
 
@@ -12,6 +21,18 @@ Webapp semplice per caricare foto `CR2` da locale e convertirle in `PNG` automat
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+## Uso rapido
+
+1. Scegli la qualita output (`Low`, `Medium`, `High`, `Maximum`).
+2. Lascia attivo `Mantieni PPI originale del CR2` per non cambiare la densita dell'immagine.
+2. Opzionale: imposta `Peso massimo per PNG (MB)`.
+3. Scegli la modalita:
+   - `Upload web`: carica file CR2 e scarica PNG/ZIP.
+   - `Percorsi locali`: imposta cartella sorgente CR2 e cartella output PNG, poi converti su disco.
+
+Nota: la modalita con percorsi locali funziona solo quando l'app gira sul tuo PC.
+Su un deploy pubblico cloud non puo accedere ai percorsi locali del tuo computer.
 
 ## Deploy pubblico con GitHub + Streamlit Community Cloud
 
@@ -36,5 +57,8 @@ git push -u origin main
 ## Note tecniche
 
 - Conversione RAW con `rawpy`.
-- Salvataggio PNG con `Pillow`.
-- Download singolo file o archivio ZIP con tutti i PNG convertiti.
+- PPI letto dai metadati CR2 con `exifread` e scritto nel PNG.
+- Ottimizzazione PNG con `Pillow` (`optimize` + `compress_level`).
+- Preset `High`/`Maximum` pensati per minima perdita visiva.
+- Riduzione peso (se richiesta) tramite resize progressivo e quantizzazione solo nei preset piu compressi.
+- Download singolo file o archivio ZIP in modalita upload.

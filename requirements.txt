@@ -2,3 +2,4 @@ streamlit>=1.33.0
 rawpy>=0.20.0
 pillow>=10.3.0
 numpy>=1.26.0
+exifread>=3.0.0
