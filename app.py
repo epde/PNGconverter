@@ -244,7 +244,7 @@ for column, option in zip(quality_columns, quality_options):
             option,
             key=f"quality_btn_{option}",
             type="primary" if st.session_state.quality_preset == option else "secondary",
-            use_container_width=True,
+            width="stretch",
         ):
             st.session_state.quality_preset = option
 
@@ -354,7 +354,7 @@ if mode == "Upload web":
             }
             for item in st.session_state.upload_results
         ]
-        st.dataframe(report_rows, use_container_width=True, hide_index=True)
+        st.dataframe(report_rows, width="stretch", hide_index=True)
 
         st.markdown("#### Selezione e download")
         header = st.columns([0.08, 0.36, 0.16, 0.16, 0.12, 0.12])
@@ -371,9 +371,10 @@ if mode == "Upload web":
 
             with row[0]:
                 is_selected = st.checkbox(
-                    "",
+                    "Seleziona file",
                     value=True,
                     key=f"sel_upload_{idx}_{item['png_name']}",
+                    label_visibility="collapsed",
                 )
 
             with row[1]:
@@ -489,4 +490,4 @@ else:
 
             if report_rows:
                 st.success(f"Conversione completata. File salvati in: {output_path}")
-                st.dataframe(report_rows, use_container_width=True, hide_index=True)
+                st.dataframe(report_rows, width="stretch", hide_index=True)
