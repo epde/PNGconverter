@@ -320,25 +320,20 @@ if mode == "Upload web":
             st.error(err)
 
     if st.session_state.upload_results:
-        report_rows = [
-            {
-                "File": item["source_name"],
-                "Input": format_kb(item["raw_size"]),
-                "Output": format_kb(item["png_size"]),
-                "PPI": f"{item['dpi'][0]}x{item['dpi'][1]}",
-            }
-            for item in st.session_state.upload_results
-        ]
-
         st.subheader("Report conversione")
-        st.dataframe(report_rows, use_container_width=True, hide_index=True)
+        st.caption("Usa la colonna di selezione a sinistra e scarica i singoli file dalla stessa lista.")
 
-        st.markdown("### Download rapido file singoli")
-        st.caption("Spunta i file a sinistra per includerli nelle operazioni di download selettivo.")
+        header = st.columns([0.08, 0.30, 0.16, 0.16, 0.12, 0.18])
+        header[0].markdown("**Sel**")
+        header[1].markdown("**File**")
+        header[2].markdown("**Input**")
+        header[3].markdown("**Output**")
+        header[4].markdown("**PPI**")
+        header[5].markdown("**Download**")
 
         selected_items = []
         for idx, item in enumerate(st.session_state.upload_results):
-            row = st.columns([0.12, 0.58, 0.30])
+            row = st.columns([0.08, 0.30, 0.16, 0.16, 0.12, 0.18])
 
             with row[0]:
                 is_selected = st.checkbox(
@@ -349,9 +344,18 @@ if mode == "Upload web":
                 )
 
             with row[1]:
-                st.write(f"{item['png_name']} ({format_kb(item['png_size'])})")
+                st.write(item["png_name"])
 
             with row[2]:
+                st.write(format_kb(item["raw_size"]))
+
+            with row[3]:
+                st.write(format_kb(item["png_size"]))
+
+            with row[4]:
+                st.write(f"{item['dpi'][0]}x{item['dpi'][1]}")
+
+            with row[5]:
                 st.download_button(
                     label="⬇ Download",
                     data=item["png_data"],
