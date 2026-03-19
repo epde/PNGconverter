@@ -206,15 +206,28 @@ if "upload_results" not in st.session_state:
 if "upload_errors" not in st.session_state:
     st.session_state.upload_errors = []
 
+if "quality_preset" not in st.session_state:
+    st.session_state.quality_preset = "Maximum"
+
 st.title("CR2 to PNG Converter")
 st.write("Conversione CR2 -> PNG con modalita web o cartella locale.")
 
-quality = st.select_slider(
-    "Qualita output",
-    options=["Low", "Medium", "High", "Maximum"],
-    value="High",
-)
-st.caption(QUALITY_PRESETS[quality]["description"])
+st.subheader("Qualita output")
+quality_options = ["Low", "Medium", "High", "Maximum"]
+quality_columns = st.columns(len(quality_options))
+
+for column, option in zip(quality_columns, quality_options):
+    with column:
+        if st.button(
+            option,
+            key=f"quality_btn_{option}",
+            type="primary" if st.session_state.quality_preset == option else "secondary",
+            use_container_width=True,
+        ):
+            st.session_state.quality_preset = option
+
+quality = st.session_state.quality_preset
+st.caption(f"Selezionato: {quality} - {QUALITY_PRESETS[quality]['description']}")
 
 keep_source_ppi = st.checkbox(
     "Mantieni PPI originale del CR2",
