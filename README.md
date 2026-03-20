@@ -47,6 +47,13 @@ Per evitare che l'app vada in sleep durante la notte, usa un hosting container a
 4. Render usera automaticamente `render.yaml` e `Dockerfile`.
 5. Scegli piano `Starter` (always-on).
 
+### Se la pagina non carica su Render
+
+- Verifica di usare URL servizio Render corretto (es. `https://pngconverter.onrender.com`).
+- Esegui hard refresh (`Ctrl+F5`) dopo ogni deploy.
+- Se vedi errori WebSocket nel browser, prova in finestra anonima o disattiva estensioni che iniettano script.
+- Il progetto include configurazione Streamlit ottimizzata per proxy/container in `.streamlit/config.toml`.
+
 ### Opzione B: Railway
 
 1. Crea account su Railway e collega GitHub.
