@@ -10,6 +10,7 @@ Webapp per convertire foto `CR2` in `PNG` con controllo su qualita e peso finale
 - Preservazione PPI originale del CR2 (con fallback configurabile).
 - Limite opzionale sul peso massimo per PNG (in MB).
 - Report finale con confronto peso input/output.
+- Gestione batch robusta: limite file per batch, paginazione report e output temporaneo su disco.
 
 ## Requisiti
 
@@ -34,7 +35,28 @@ streamlit run app.py
 Nota: la modalita con percorsi locali funziona solo quando l'app gira sul tuo PC.
 Su un deploy pubblico cloud non puo accedere ai percorsi locali del tuo computer.
 
-## Deploy pubblico con GitHub + Streamlit Community Cloud
+## Deploy pubblico always-on (consigliato)
+
+Per evitare che l'app vada in sleep durante la notte, usa un hosting container always-on.
+
+### Opzione A: Render (consigliata)
+
+1. Crea account su Render e collega GitHub.
+2. Clicca `New` -> `Blueprint`.
+3. Seleziona il repository `epde/PNGconverter`.
+4. Render usera automaticamente `render.yaml` e `Dockerfile`.
+5. Scegli piano `Starter` (always-on).
+
+### Opzione B: Railway
+
+1. Crea account su Railway e collega GitHub.
+2. `New Project` -> `Deploy from GitHub repo`.
+3. Seleziona `epde/PNGconverter`.
+4. Railway usera il `Dockerfile` e pubblichera un URL condivisibile.
+
+Nota: per garantire disponibilita continua serve un piano senza sleep automatico.
+
+## Deploy Streamlit Community Cloud (con sleep)
 
 1. Crea un repository pubblico su GitHub (es. `pngconverter`).
 2. Esegui i comandi git nella root del progetto:
@@ -62,3 +84,4 @@ git push -u origin main
 - Preset `High`/`Maximum` pensati per minima perdita visiva.
 - Riduzione peso (se richiesta) tramite resize progressivo e quantizzazione solo nei preset piu compressi.
 - Download singolo file o archivio ZIP in modalita upload.
+- In modalita upload i PNG vengono salvati in una cartella temporanea server-side per ridurre il consumo RAM su batch grandi.

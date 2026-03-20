@@ -1,4 +1,6 @@
 import io
+import shutil
+import tempfile
 import urllib.parse
 import zipfile
 from pathlib import Path
@@ -161,6 +163,27 @@ def format_kb(size_bytes: int) -> str:
     return f"{size_bytes / 1024:.0f} KB"
 
 
+def ensure_upload_temp_dir() -> Path:
+    current_dir = st.session_state.get("upload_temp_dir")
+    if current_dir:
+        path = Path(current_dir)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="cr2png_"))
+    st.session_state.upload_temp_dir = str(temp_dir)
+    return temp_dir
+
+
+def reset_upload_state() -> None:
+    old_dir = st.session_state.get("upload_temp_dir")
+    if old_dir:
+        shutil.rmtree(old_dir, ignore_errors=True)
+    st.session_state.upload_temp_dir = str(tempfile.mkdtemp(prefix="cr2png_"))
+    st.session_state.upload_results = []
+    st.session_state.upload_errors = []
+
+
 def set_svg_favicon() -> None:
         svg_icon = """
         <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>
@@ -205,6 +228,9 @@ if "upload_results" not in st.session_state:
 
 if "upload_errors" not in st.session_state:
     st.session_state.upload_errors = []
+
+if "upload_temp_dir" not in st.session_state:
+    st.session_state.upload_temp_dir = str(tempfile.mkdtemp(prefix="cr2png_"))
 
 if "quality_preset" not in st.session_state:
     st.session_state.quality_preset = "Maximum"
@@ -254,6 +280,22 @@ with st.expander("Impostazioni avanzate output", expanded=False):
         help="0 = nessun limite. Se impostato, la conversione prova a stare sotto il valore.",
     )
 
+    max_files_per_batch = st.number_input(
+        "Numero massimo file per batch",
+        min_value=1,
+        max_value=500,
+        value=40,
+        step=1,
+        help="Riduce il rischio di errore su cloud durante elaborazioni molto grandi.",
+    )
+
+    report_page_size = st.selectbox(
+        "Righe visibili nel report",
+        options=[10, 20, 50],
+        index=1,
+        help="Mostra meno righe per volta per una UI piu stabile con molti file.",
+    )
+
 mode = st.radio(
     "Modalita",
     options=["Upload web", "Percorsi locali (solo esecuzione locale)"],
@@ -271,46 +313,55 @@ if mode == "Upload web":
         st.info("Dopo aver selezionato i file, premi Converti file caricati.")
 
         if st.button("Converti file caricati", type="primary"):
-            st.session_state.upload_results = []
-            st.session_state.upload_errors = []
+            if len(uploaded_files) > int(max_files_per_batch):
+                st.error(
+                    f"Hai caricato {len(uploaded_files)} file. Il massimo per batch e {int(max_files_per_batch)}. "
+                    "Riduci il numero file o aumenta il limite nelle impostazioni avanzate."
+                )
+            else:
+                reset_upload_state()
+                output_dir = ensure_upload_temp_dir()
 
-            total_files = len(uploaded_files)
-            progress = st.progress(0, text="Preparazione conversione...")
-            status = st.empty()
+                total_files = len(uploaded_files)
+                progress = st.progress(0, text="Preparazione conversione...")
+                status = st.empty()
 
-            for index, uploaded in enumerate(uploaded_files, start=1):
-                try:
-                    progress.progress(
-                        int(((index - 1) / total_files) * 100),
-                        text=f"Elaborazione {index}/{total_files}: {uploaded.name}",
-                    )
-                    raw_data = uploaded.read()
-                    png_data, dpi = raw_bytes_to_png(
-                        raw_data,
-                        quality,
-                        max_size_mb,
-                        keep_source_ppi,
-                        int(fallback_ppi),
-                    )
+                for index, uploaded in enumerate(uploaded_files, start=1):
+                    try:
+                        progress.progress(
+                            int(((index - 1) / total_files) * 100),
+                            text=f"Elaborazione {index}/{total_files}: {uploaded.name}",
+                        )
+                        raw_data = uploaded.read()
+                        png_data, dpi = raw_bytes_to_png(
+                            raw_data,
+                            quality,
+                            max_size_mb,
+                            keep_source_ppi,
+                            int(fallback_ppi),
+                        )
 
-                    base_name = Path(uploaded.name).stem
-                    png_name = f"{base_name}.png"
-                    st.session_state.upload_results.append(
-                        {
-                            "source_name": uploaded.name,
-                            "png_name": png_name,
-                            "raw_size": len(raw_data),
-                            "png_size": len(png_data),
-                            "dpi": dpi,
-                            "png_data": png_data,
-                        }
-                    )
-                    status.info(f"Completato {index}/{total_files}: {uploaded.name}")
-                except Exception as exc:
-                    st.session_state.upload_errors.append(f"Errore su {uploaded.name}: {exc}")
+                        base_name = Path(uploaded.name).stem
+                        png_name = f"{base_name}.png"
+                        output_path = output_dir / png_name
+                        output_path.write_bytes(png_data)
 
-            progress.progress(100, text="Conversione completata")
-            status.success("Conversione terminata. Ora puoi scaricare i file convertiti.")
+                        st.session_state.upload_results.append(
+                            {
+                                "source_name": uploaded.name,
+                                "png_name": png_name,
+                                "raw_size": len(raw_data),
+                                "png_size": output_path.stat().st_size,
+                                "dpi": dpi,
+                                "png_path": str(output_path),
+                            }
+                        )
+                        status.info(f"Completato {index}/{total_files}: {uploaded.name}")
+                    except Exception as exc:
+                        st.session_state.upload_errors.append(f"Errore su {uploaded.name}: {exc}")
+
+                progress.progress(100, text="Conversione completata")
+                status.success("Conversione terminata. Ora puoi scaricare i file convertiti.")
 
     else:
         st.info("Carica almeno un file CR2 per iniziare.")
@@ -344,13 +395,26 @@ if mode == "Upload web":
         header[5].markdown("**DL**")
 
         selected_items = []
+        total_results = len(st.session_state.upload_results)
+        total_pages = max(1, (total_results + report_page_size - 1) // report_page_size)
+        current_page = st.number_input("Pagina report", min_value=1, max_value=total_pages, value=1, step=1)
+        page_start = (int(current_page) - 1) * report_page_size
+        page_end = page_start + report_page_size
+        visible_items = st.session_state.upload_results[page_start:page_end]
+
+        st.caption(f"Mostrando file {page_start + 1}-{min(page_end, total_results)} di {total_results}")
+
         for idx, item in enumerate(st.session_state.upload_results):
+            checkbox_key = f"sel_upload_{idx}_{item['png_name']}"
+            if checkbox_key not in st.session_state:
+                st.session_state[checkbox_key] = True
+
+        for idx, item in enumerate(visible_items, start=page_start):
             row = st.columns([0.08, 0.36, 0.16, 0.16, 0.12, 0.12])
 
             with row[0]:
                 is_selected = st.checkbox(
                     "Seleziona file",
-                    value=True,
                     key=f"sel_upload_{idx}_{item['png_name']}",
                     label_visibility="collapsed",
                 )
@@ -368,9 +432,10 @@ if mode == "Upload web":
                 st.write(f"{item['dpi'][0]}x{item['dpi'][1]}")
 
             with row[5]:
+                png_file = Path(item["png_path"])
                 st.download_button(
                     label="⬇",
-                    data=item["png_data"],
+                    data=png_file.read_bytes(),
                     file_name=item["png_name"],
                     mime="image/png",
                     key=f"dl_icon_{idx}_{item['png_name']}",
@@ -380,6 +445,11 @@ if mode == "Upload web":
 
             if is_selected:
                 selected_items.append(item)
+
+        for idx, item in enumerate(st.session_state.upload_results):
+            if st.session_state.get(f"sel_upload_{idx}_{item['png_name']}"):
+                if item not in selected_items:
+                    selected_items.append(item)
 
         show_zip_download = st.checkbox(
             "Mostra anche download ZIP",
@@ -391,7 +461,7 @@ if mode == "Upload web":
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
                 for item in selected_items:
-                    zf.writestr(item["png_name"], item["png_data"])
+                    zf.writestr(item["png_name"], Path(item["png_path"]).read_bytes())
             zip_buffer.seek(0)
 
             if selected_items:
